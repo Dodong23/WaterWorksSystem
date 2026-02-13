@@ -51,7 +51,7 @@ async function serveProtectedHtml(req, res, next, filePath, requiredOfficeCode =
   const token = req.cookies.token;
   if (!token) {
      console.log("Access attempt without token")
-    return res.redirect('/mws-login');
+    return res.redirect('/');
   }
 
   try {
@@ -61,7 +61,7 @@ async function serveProtectedHtml(req, res, next, filePath, requiredOfficeCode =
     // Role-based authorization
     if (requiredOfficeCode !== null && String(req.user.officeCode) !== String(requiredOfficeCode)) {
       console.log("OfficeCode mismatch")
-      return res.redirect('/mws-login');
+      return res.redirect('/');
     }
 
     let html = '';
@@ -82,24 +82,24 @@ async function serveProtectedHtml(req, res, next, filePath, requiredOfficeCode =
   } catch (err) {
     // Token is not valid
     console.error('Token verification error:', err);
-    return res.redirect('/mws-login');
+    return res.redirect('/');
   }
 }
 
 // for clients request accross offices
-app.use('/water/clients', clientsRoutes);
-app.use('/engineering/service-requests', serviceRequestRoutes);
-app.use('/engineering/services', servicesRoutes);
+app.use('/water/clients', auth, clientsRoutes);
+app.use('/engineering/service-requests', auth, serviceRequestRoutes);
+app.use('/engineering/services',  auth, servicesRoutes);
 
 
 // app.use('/ngo/images', imageRoutes);
 // app.use('/ngo/web', web);
 
 // payments and billings API
-app.use('/api/billings', billingRoutes);
-app.use('/api/payments', paymentRoutes);
-app.use('/api/or-registry', orRegistryRoutes);
-app.use('/api/misc-fees', miscellaneousFeeRoutes);
+app.use('/api/billings', auth, billingRoutes);
+app.use('/api/payments', auth, paymentRoutes);
+app.use('/api/or-registry', auth, orRegistryRoutes);
+app.use('/api/misc-fees', auth, miscellaneousFeeRoutes);
 app.use('/api/fees', auth, feeRoutes); // Use fee routes
 app.use('/api/messages', auth, messageRoutes);
 // ================= Static File Serving =================
@@ -111,7 +111,7 @@ app.get('/treasury', (req, res) => { // only treasury can access. treasury accou
 serveProtectedHtml(req, res, null, path.join(__dirname, './private/html/index-treasury.html'), '2');
 });
 
-app.get('/mws-login', (req, res) => {
+app.get('/', (req, res) => {
 let html = ''
    try {
         const htmlFile = path.join(__dirname, './private/html/login.html');
