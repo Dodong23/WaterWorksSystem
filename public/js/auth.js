@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     method: 'POST',
                 });
                 if (response.ok) {
-                    window.location.href = '/mws-login';
+                    window.location.href = '/';
                 } else {
                     alert('Logout failed. Please try again.');
                 }

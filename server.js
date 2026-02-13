@@ -164,6 +164,9 @@ let html = ''
   res.send(html);
 });
 
+app.get('wakeUp', (req, res) => {
+  res.json({"status": "awake"});
+})
 app.get('/all-clients', (req, res) => {
 let html = ''
    try {
