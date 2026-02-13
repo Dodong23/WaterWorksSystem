@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DTR Log Repair Tool</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-" crossorigin="anonymous">
+<style>
+    body { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; }
+    pre#reviewOutput, pre#reviewMonthOutput { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0">Log Cleanser</h2>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2 align-items-center">
+                <div class="col-auto">
+                    <input class="form-control form-control-sm" type="file" id="fileInput" accept=".txt,.bat">
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-primary" onclick="processFile()">Clean File</button>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-outline-secondary" onclick="downloadFile()">Download cleansed File</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header">Manage IDs</div>
+        <div class="card-body">
+            <div class="row g-2 align-items-center">
+                <div class="col-md-3">
+                    <input id="newIdInput" class="form-control" placeholder="ID (e.g. 204)">
+                </div>
+                <div class="col-md-6">
+                    <input id="newIdDays" class="form-control" placeholder="Not reporting days (comma separated, e.g. 6,7,8)">
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-sm btn-success" onclick="addID()">Add / Update ID</button>
+                </div>
+            </div>
+            <hr>
+            <div id="idList" class="mt-2"></div>
+        </div>
+    </div>
+
+    <!-- Output display removed; stored data will be downloadable via the Download button -->
+
+    <div class="row">
+        <div class="col-12 mb-3">
+            <div class="card">
+                <div class="card-header">Month Review</div>
+                <div class="card-body">
+                    <div class="row g-2 align-items-center mb-2">
+                        <div class="col-auto">
+                            <label class="form-label mb-0" for="reviewMonthId">ID</label>
+                            <select id="reviewMonthId" class="form-select"></select>
+                        </div>
+                        <div class="col-auto">
+                            <label class="form-label mb-0" for="reviewMonth">Month</label>
+                            <input type="month" id="reviewMonth" class="form-control" />
+                        </div>
+                        <div class="col-auto align-self-end">
+                            <button class="btn btn-sm btn-primary" onclick="showMonthReview()">Show Month</button>
+                        </div>
+                    </div>
+                    <div class="card bg-light">
+                        <div class="card-body p-2"><pre id="reviewMonthOutput" class="mb-0" style="white-space:pre-wrap"></pre></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ------------------- CONFIG ---------------------------- //
+const targetMonth = "2026-01";
+
+const selectedIDS = [
+   { 204:  { notReportingDays: new Set([1,2,3,4,10,11,16,17,18,24,25,31]) }},
+   { 313:  { notReportingDays: new Set([1,2,3,4,10,11,16,17,18,24,25,31]) }},
+];
+const TIME_RULES = {
+    AM_IN:  { start:"07:43:00", end:"08:00:00", type:0 },
+    AM_OUT: { start:"12:00:00", end:"12:18:00", type:1 },
+    PM_IN:  { start:"12:37:00", end:"13:00:00", type:0 },
+    PM_OUT: { start:"17:05:00", end:"17:15:00", type:1 },
+};
+// ------------------- End of CONFIG --------------------- //
+
+let originalLines = [];
+let parsed = [];
+let storedOutput = ""; // holds the cleansed timelog for download
+
+// Read uploaded file
+function processFile() {
+    const file = document.getElementById("fileInput").files[0];
+    if (!file) { alert("Upload a .txt or .bat file first."); return; }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        originalLines = reader.result.trim().split(/\r?\n/);
+        parseLines();
+        generateMissingLogs();
+        storedOutput = formatOutput();
+    };
+    reader.readAsText(file);
+}
+
+// Parse each row
+function parseLines() {
+    parsed = originalLines.map(line => {
+        let parts = line.trim().split(/\s+/);
+        return {
+            id: parseInt(parts[0]),
+            datetime: parts[1] + " " + parts[2],
+            date: parts[1],
+            time: parts[2],
+            type: parseInt(parts[3]),
+            raw: line
+        };
+    });
+}
+
+// Time utils
+function timeToSeconds(t) {
+    let [hh, mm, ss] = t.split(":").map(Number);
+    return hh * 3600 + mm * 60 + ss;
+}
+
+function secondsToTime(sec) {
+    let hh = Math.floor(sec / 3600);
+    let mm = Math.floor((sec % 3600) / 60);
+    let ss = sec % 60;
+    return `${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}:${String(ss).padStart(2,"0")}`;
+}
+
+function randomTime(start, end) {
+    const startS = timeToSeconds(start);
+    const endS = timeToSeconds(end);
+    const rand = Math.floor(Math.random() * (endS - startS + 1)) + startS;
+    return secondsToTime(rand);
+}
+
+function isWithin(time, start, end) {
+    const t = timeToSeconds(time);
+    return t >= timeToSeconds(start) && t <= timeToSeconds(end);
+}
+
+function makeLog(id, date, timeStr, type) {
+    return `${id}\t${date} ${timeStr}\t1\t${type}\t15\t0`;
+}
+
+// Generate a time within start..end ensuring minute uniqueness rules
+function generateTimeForSlot(id, slotKey, day, start, end, usedMinutes) {
+    const startS = timeToSeconds(start);
+    const endS = timeToSeconds(end);
+    const maxTries = 500;
+
+    const withinPrev7 = (minute) => {
+        for (let d = Math.max(1, day - 7); d <= day - 1; d++) {
+            if (usedMinutes[slotKey] && usedMinutes[slotKey][d] === minute) return true;
+        }
+        return false;
+    };
+
+    const prevDayMinute = (usedMinutes[slotKey] && usedMinutes[slotKey][day - 1]) || null;
+
+    for (let i = 0; i < maxTries; i++) {
+        const rand = Math.floor(Math.random() * (endS - startS + 1)) + startS;
+        const mm = Math.floor((rand % 3600) / 60);
+
+        if (withinPrev7(mm)) continue; // avoid repeats in previous 7 days
+        if (prevDayMinute !== null && (mm === prevDayMinute + 1 || mm === prevDayMinute - 1)) continue; // avoid consecutive sequence
+
+        // accept
+        if (!usedMinutes[slotKey]) usedMinutes[slotKey] = {};
+        usedMinutes[slotKey][day] = mm;
+        return secondsToTime(rand);
+    }
+
+    // Fallback: try a few times to avoid prevDay +/-1, otherwise accept any random
+    for (let i = 0; i < 50; i++) {
+        const rand = Math.floor(Math.random() * (endS - startS + 1)) + startS;
+        const mm = Math.floor((rand % 3600) / 60);
+        if (prevDayMinute !== null && (mm === prevDayMinute + 1 || mm === prevDayMinute - 1)) continue;
+        if (!usedMinutes[slotKey]) usedMinutes[slotKey] = {};
+        usedMinutes[slotKey][day] = mm;
+        return secondsToTime(rand);
+    }
+
+    // Last resort: return any random time
+    const lastRand = Math.floor(Math.random() * (endS - startS + 1)) + startS;
+    const lastMm = Math.floor((lastRand % 3600) / 60);
+    if (!usedMinutes[slotKey]) usedMinutes[slotKey] = {};
+    usedMinutes[slotKey][day] = lastMm;
+    return secondsToTime(lastRand);
+}
+
+// Generate missing logs
+function generateMissingLogs() {
+    let added = [];
+
+    for (let obj of selectedIDS) {
+        const id = parseInt(Object.keys(obj)[0]);
+        const skips = obj[id].notReportingDays;
+
+        // Build used minutes history per slot from existing parsed logs for this id
+        const usedMinutes = { AM_IN: {}, AM_OUT: {}, PM_IN: {}, PM_OUT: {} };
+        for (let p of parsed) {
+            if (p.id !== id) continue;
+            const dayNum = parseInt(p.date.split("-").pop(), 10);
+            const minute = parseInt(p.time.split(":")[1], 10);
+            if (isWithin(p.time, TIME_RULES.AM_IN.start, TIME_RULES.AM_IN.end) && p.type == 0) usedMinutes.AM_IN[dayNum] = minute;
+            if (isWithin(p.time, TIME_RULES.AM_OUT.start, TIME_RULES.AM_OUT.end) && p.type == 1) usedMinutes.AM_OUT[dayNum] = minute;
+            if (isWithin(p.time, TIME_RULES.PM_IN.start, TIME_RULES.PM_IN.end) && p.type == 0) usedMinutes.PM_IN[dayNum] = minute;
+            if (isWithin(p.time, TIME_RULES.PM_OUT.start, TIME_RULES.PM_OUT.end) && p.type == 1) usedMinutes.PM_OUT[dayNum] = minute;
+        }
+
+        for (let day = 1; day <= 30; day++) {
+            const dayStr = day.toString().padStart(2, "0");
+            const date = `${targetMonth}-${dayStr}`;
+
+            // ---- SKIPS WEEKENDS ----
+            const weekday = new Date(date).getDay();
+            if (weekday === 0 || weekday === 6) continue;
+
+            // ---- SKIP CUSTOM NON-REPORT DAYS ----
+            if (skips.has(day)) continue;
+
+            let logs = parsed.filter(x => x.id === id && x.date === date);
+
+            const hasAM_IN  = logs.some(x => isWithin(x.time, TIME_RULES.AM_IN.start, TIME_RULES.AM_IN.end) && x.type == 0);
+            const hasAM_OUT = logs.some(x => isWithin(x.time, TIME_RULES.AM_OUT.start, TIME_RULES.AM_OUT.end) && x.type == 1);
+            const hasPM_IN  = logs.some(x => isWithin(x.time, TIME_RULES.PM_IN.start, TIME_RULES.PM_IN.end) && x.type == 0);
+            const hasPM_OUT = logs.some(x => isWithin(x.time, TIME_RULES.PM_OUT.start, TIME_RULES.PM_OUT.end) && x.type == 1);
+
+            if (!hasAM_IN) {
+                const t = generateTimeForSlot(id, 'AM_IN', day, TIME_RULES.AM_IN.start, TIME_RULES.AM_IN.end, usedMinutes);
+                const line = makeLog("      "+id, date, t, TIME_RULES.AM_IN.type);
+                added.push(line);
+            }
+
+            if (!hasAM_OUT) {
+                const t = generateTimeForSlot(id, 'AM_OUT', day, TIME_RULES.AM_OUT.start, TIME_RULES.AM_OUT.end, usedMinutes);
+                const line = makeLog("      "+id, date, t, TIME_RULES.AM_OUT.type);
+                added.push(line);
+            }
+
+            if (!hasPM_IN) {
+                const t = generateTimeForSlot(id, 'PM_IN', day, TIME_RULES.PM_IN.start, TIME_RULES.PM_IN.end, usedMinutes);
+                const line = makeLog("      "+id, date, t, TIME_RULES.PM_IN.type);
+                added.push(line);
+            }
+
+            if (!hasPM_OUT) {
+                const t = generateTimeForSlot(id, 'PM_OUT', day, TIME_RULES.PM_OUT.start, TIME_RULES.PM_OUT.end, usedMinutes);
+                const line = makeLog("      "+id, date, t, TIME_RULES.PM_OUT.type);
+                added.push(line);
+            }
+        }
+    }
+
+    added.forEach(l => parsed.push({ raw:l }));
+}
+
+function formatOutput() {
+    return parsed
+        .map(x => x.raw)
+        .sort()
+        .join("\n");
+}
+
+function downloadFile() {
+    const text = storedOutput || formatOutput();
+    const blob = new Blob([text], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "fixed_dtr.txt";
+    a.click();
+}
+
+// load bootstrap JS (optional enhancements)
+const bsScript = document.createElement('script');
+bsScript.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js';
+bsScript.integrity = '';
+bsScript.crossOrigin = 'anonymous';
+document.body.appendChild(bsScript);
+
+// Populate ID dropdown from selectedIDS
+function populateIdOptions() {
+    // populate month review ID select and default month
+    const selM = document.getElementById('reviewMonthId');
+    selM.innerHTML = '';
+    for (let obj of selectedIDS) {
+        const id = Object.keys(obj)[0];
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.text = id;
+        selM.appendChild(opt);
+    }
+    try { document.getElementById('reviewMonth').value = targetMonth; } catch(e){}
+}
+
+// Render the ID list in Manage IDs card
+function renderIdManager() {
+    const container = document.getElementById('idList');
+    container.innerHTML = '';
+    if (!selectedIDS || selectedIDS.length === 0) { container.textContent = 'No IDs configured.'; return; }
+    const list = document.createElement('div');
+    list.className = 'list-group';
+    for (let i = 0; i < selectedIDS.length; i++) {
+        const obj = selectedIDS[i];
+        const id = Object.keys(obj)[0];
+        const daysSet = obj[id].notReportingDays || new Set();
+        const daysArr = Array.from(daysSet).sort((a,b)=>a-b).join(',');
+        const item = document.createElement('div');
+        item.className = 'list-group-item d-flex justify-content-between align-items-center';
+        item.innerHTML = `<div><strong>${id}</strong> — Not reporting days: <span id="nr-${id}">${daysArr}</span></div>`;
+        const btns = document.createElement('div');
+        btns.innerHTML = `<button class="btn btn-sm btn-outline-primary me-1" onclick="editID(${id})">Edit</button>` +
+                        `<button class="btn btn-sm btn-outline-danger" onclick="removeID(${id})">Remove</button>`;
+        item.appendChild(btns);
+        list.appendChild(item);
+    }
+    container.appendChild(list);
+}
+
+function addID() {
+    const idVal = document.getElementById('newIdInput').value.trim();
+    const daysVal = document.getElementById('newIdDays').value.trim();
+    if (!idVal) { alert('Enter an ID'); return; }
+    const id = parseInt(idVal,10);
+    if (isNaN(id)) { alert('Invalid ID'); return; }
+    const days = daysVal ? daysVal.split(',').map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n)) : [];
+
+    // if exists update, else add
+    for (let obj of selectedIDS) {
+        const key = Object.keys(obj)[0];
+        if (parseInt(key) === id) {
+            obj[key].notReportingDays = new Set(days);
+            populateIdOptions(); renderIdManager();
+            return;
+        }
+    }
+    const entry = {};
+    entry[id] = { notReportingDays: new Set(days) };
+    selectedIDS.push(entry);
+    populateIdOptions(); renderIdManager();
+}
+
+function removeID(id) {
+    for (let i = 0; i < selectedIDS.length; i++) {
+        const key = Object.keys(selectedIDS[i])[0];
+        if (parseInt(key) === id) { selectedIDS.splice(i,1); break; }
+    }
+    populateIdOptions(); renderIdManager();
+}
+
+function editID(id) {
+    // populate inputs for editing
+    for (let obj of selectedIDS) {
+        const key = Object.keys(obj)[0];
+        if (parseInt(key) === id) {
+            document.getElementById('newIdInput').value = key;
+            document.getElementById('newIdDays').value = Array.from(obj[key].notReportingDays||[]).join(',');
+            return;
+        }
+    }
+}
+
+function daysInMonth(year, month) {
+    return new Date(year, month, 0).getDate();
+}
+
+// Show per-month timelog for selected ID and month (AM/PM in/out)
+function showMonthReview() {
+    if (!parsed || parsed.length === 0) {
+        alert('No data loaded. Upload and Clean File first.');
+        return;
+    }
+    const id = parseInt(document.getElementById('reviewMonthId').value, 10);
+    const ym = document.getElementById('reviewMonth').value || targetMonth;
+    if (!ym) { alert('Pick a month'); return; }
+    const [yearStr, monthStr] = ym.split('-');
+    const year = parseInt(yearStr,10);
+    const month = parseInt(monthStr,10);
+
+    const all = normalizeParsed();
+    const prefix = `${yearStr}-${monthStr.padStart(2,'0')}`;
+
+    const days = daysInMonth(year, month);
+    const slotNames = ['AM_IN','AM_OUT','PM_IN','PM_OUT'];
+
+    // Initialize matrix day -> slots
+    const matrix = {};
+    for (let d = 1; d <= days; d++) {
+        const k = String(d).padStart(2,'0');
+        matrix[k] = { AM_IN: '-', AM_OUT: '-', PM_IN: '-', PM_OUT: '-' };
+    }
+
+    // Fill from entries
+    for (let p of all) {
+        if (p.id !== id) continue;
+        if (!p.date || !p.time) continue;
+        if (!p.date.startsWith(prefix)) continue;
+        const day = p.date.split('-').pop();
+        if (isWithin(p.time, TIME_RULES.AM_IN.start, TIME_RULES.AM_IN.end) && p.type == 0) matrix[day].AM_IN = p.time;
+        if (isWithin(p.time, TIME_RULES.AM_OUT.start, TIME_RULES.AM_OUT.end) && p.type == 1) matrix[day].AM_OUT = p.time;
+        if (isWithin(p.time, TIME_RULES.PM_IN.start, TIME_RULES.PM_IN.end) && p.type == 0) matrix[day].PM_IN = p.time;
+        if (isWithin(p.time, TIME_RULES.PM_OUT.start, TIME_RULES.PM_OUT.end) && p.type == 1) matrix[day].PM_OUT = p.time;
+    }
+
+    // Do not auto-generate entries on Show Month; display only stored/parsing results.
+
+    // Build editable table
+    const container = document.getElementById('reviewMonthOutput');
+    container.innerHTML = '';
+
+    const toolbar = document.createElement('div');
+    toolbar.className = 'mb-2';
+    toolbar.innerHTML = `
+      <button class="btn btn-sm btn-outline-secondary me-2" id="regenMonthBtn">Regenerate Missing</button>
+      <button class="btn btn-sm btn-primary me-2" id="editMonthBtn">Edit</button>
+      <button class="btn btn-sm btn-success d-none" id="saveMonthBtn">Save</button>
+    `;
+    container.appendChild(toolbar);
+
+    const table = document.createElement('table');
+    table.className = 'table table-sm';
+    const thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th>Day</th><th>AM IN</th><th>AM OUT</th><th>PM IN</th><th>PM OUT</th></tr>';
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+
+    for (let d = 1; d <= days; d++) {
+        const k = String(d).padStart(2,'0');
+        const tr = document.createElement('tr');
+        const cellDay = document.createElement('td');
+        cellDay.textContent = k;
+        tr.appendChild(cellDay);
+
+        for (let s of slotNames) {
+            const td = document.createElement('td');
+            const val = matrix[k][s] || '-';
+            td.innerHTML = `<span class="display-val">${val === '-' ? '-' : formatTime12(val)}</span>` +
+                           `<input class="form-control form-control-sm edit-input d-none" value="${val === '-' ? '' : formatTime12(val)}" />`;
+            tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    container.appendChild(table);
+
+    // Wire up buttons
+    document.getElementById('regenMonthBtn').onclick = () => regenerateMissingForMonth(id, year, month);
+    const editBtn = document.getElementById('editMonthBtn');
+    const saveBtn = document.getElementById('saveMonthBtn');
+    editBtn.onclick = () => {
+        container.querySelectorAll('.display-val').forEach(el => el.classList.add('d-none'));
+        container.querySelectorAll('.edit-input').forEach(el => el.classList.remove('d-none'));
+        editBtn.classList.add('d-none');
+        saveBtn.classList.remove('d-none');
+    };
+    saveBtn.onclick = () => saveMonthEdits(id, year, month);
+}
+
+// Convert 24-hour 'HH:MM:SS' to 'h:mm AM/PM'
+function formatTime12(t) {
+    if (!t || t === '-') return '-';
+    const parts = t.split(':').map(Number);
+    if (parts.length < 2) return t;
+    let hh = parts[0];
+    const mm = String(parts[1]).padStart(2,'0');
+    const ampm = hh >= 12 ? 'PM' : 'AM';
+    hh = hh % 12;
+    if (hh === 0) hh = 12;
+    return `${hh}:${mm} ${ampm}`;
+}
+
+// Parse user input like '1:00 PM' or '13:00' into 'HH:MM:SS'
+function parseTimeInput(input) {
+    if (!input) return null;
+    input = input.trim();
+    // If already HH:MM or HH:MM:SS
+    const mmss = input.split(':');
+    if (mmss.length >= 2 && /\d/.test(input)) {
+        // handle AM/PM
+        const ampmMatch = input.match(/\s*(AM|PM)$/i);
+        let hours = parseInt(mmss[0],10);
+        const minutes = parseInt(mmss[1],10) || 0;
+        if (ampmMatch) {
+            const ap = ampmMatch[1].toUpperCase();
+            if (ap === 'PM' && hours < 12) hours += 12;
+            if (ap === 'AM' && hours === 12) hours = 0;
+        }
+        hours = (hours+24)%24;
+        return `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:00`;
+    }
+    return null;
+}
+
+// Regenerate missing entries for the given month (uses existing generation rules)
+function regenerateMissingForMonth(id, year, month) {
+    const monthStr = String(month).padStart(2,'0');
+    const days = daysInMonth(year, month);
+    // Build usedMinutes from parsed for this id
+    const usedMinutes = { AM_IN: {}, AM_OUT: {}, PM_IN: {}, PM_OUT: {} };
+    const all = normalizeParsed();
+    for (let p of all) {
+        if (p.id !== id) continue;
+        const parts = p.date.split('-');
+        if (parts[0] != String(year) || parts[1] != monthStr) continue;
+        const dayNum = parseInt(parts[2],10);
+        const minute = parseInt(p.time.split(':')[1],10);
+        if (isWithin(p.time, TIME_RULES.AM_IN.start, TIME_RULES.AM_IN.end) && p.type == 0) usedMinutes.AM_IN[dayNum] = minute;
+        if (isWithin(p.time, TIME_RULES.AM_OUT.start, TIME_RULES.AM_OUT.end) && p.type == 1) usedMinutes.AM_OUT[dayNum] = minute;
+        if (isWithin(p.time, TIME_RULES.PM_IN.start, TIME_RULES.PM_IN.end) && p.type == 0) usedMinutes.PM_IN[dayNum] = minute;
+        if (isWithin(p.time, TIME_RULES.PM_OUT.start, TIME_RULES.PM_OUT.end) && p.type == 1) usedMinutes.PM_OUT[dayNum] = minute;
+    }
+
+    // For each day, if missing, generate and add
+    for (let d = 1; d <= days; d++) {
+        const dayStr = String(d).padStart(2,'0');
+        const date = `${year}-${monthStr}-${dayStr}`;
+        const weekday = new Date(date).getDay();
+        // skip weekends
+        if (weekday === 0 || weekday === 6) continue;
+
+        const logs = all.filter(x => x.id === id && x.date === date);
+        const hasAM_IN  = logs.some(x => isWithin(x.time, TIME_RULES.AM_IN.start, TIME_RULES.AM_IN.end) && x.type == 0);
+        const hasAM_OUT = logs.some(x => isWithin(x.time, TIME_RULES.AM_OUT.start, TIME_RULES.AM_OUT.end) && x.type == 1);
+        const hasPM_IN  = logs.some(x => isWithin(x.time, TIME_RULES.PM_IN.start, TIME_RULES.PM_IN.end) && x.type == 0);
+        const hasPM_OUT = logs.some(x => isWithin(x.time, TIME_RULES.PM_OUT.start, TIME_RULES.PM_OUT.end) && x.type == 1);
+
+        if (!hasAM_IN) {
+            const t = generateTimeForSlot(id, 'AM_IN', d, TIME_RULES.AM_IN.start, TIME_RULES.AM_IN.end, usedMinutes);
+            const line = makeLog('      '+id, date, t, TIME_RULES.AM_IN.type);
+            parsed.push({ raw: line });
+        }
+        if (!hasAM_OUT) {
+            const t = generateTimeForSlot(id, 'AM_OUT', d, TIME_RULES.AM_OUT.start, TIME_RULES.AM_OUT.end, usedMinutes);
+            const line = makeLog('      '+id, date, t, TIME_RULES.AM_OUT.type);
+            parsed.push({ raw: line });
+        }
+        if (!hasPM_IN) {
+            const t = generateTimeForSlot(id, 'PM_IN', d, TIME_RULES.PM_IN.start, TIME_RULES.PM_IN.end, usedMinutes);
+            const line = makeLog('      '+id, date, t, TIME_RULES.PM_IN.type);
+            parsed.push({ raw: line });
+        }
+        if (!hasPM_OUT) {
+            const t = generateTimeForSlot(id, 'PM_OUT', d, TIME_RULES.PM_OUT.start, TIME_RULES.PM_OUT.end, usedMinutes);
+            const line = makeLog('      '+id, date, t, TIME_RULES.PM_OUT.type);
+            parsed.push({ raw: line });
+        }
+    }
+
+    // refresh display and update stored output
+    showMonthReview();
+    storedOutput = formatOutput();
+}
+
+// importMonthRows removed
+
+// Save edits made in the month table back to parsed and update output
+function saveMonthEdits(id, year, month) {
+    const container = document.getElementById('reviewMonthOutput');
+    const table = container.querySelector('table');
+    if (!table) return;
+    const rows = table.querySelectorAll('tbody tr');
+    const monthStr = String(month).padStart(2,'0');
+
+    for (let r of rows) {
+        const day = r.children[0].textContent.trim();
+        for (let i = 1; i <=4; i++) {
+            const td = r.children[i];
+            const input = td.querySelector('.edit-input');
+            const val = input.value.trim();
+            const slotKey = ['AM_IN','AM_OUT','PM_IN','PM_OUT'][i-1];
+            const type = (slotKey.endsWith('OUT')) ? 1 : 0;
+            const parsedTime = parseTimeInput(val);
+            const date = `${year}-${monthStr}-${day}`;
+            if (parsedTime) {
+                updateOrCreateSlot(id, date, slotKey, parsedTime, type);
+            } else {
+                // if empty, leave as-is (do not delete existing entries)
+            }
+        }
+    }
+
+    // regenerate stored output and refresh view
+    storedOutput = formatOutput();
+    // switch back to display mode
+    container.querySelectorAll('.display-val').forEach(el => el.classList.remove('d-none'));
+    container.querySelectorAll('.edit-input').forEach(el => el.classList.add('d-none'));
+    document.getElementById('editMonthBtn').classList.remove('d-none');
+    document.getElementById('saveMonthBtn').classList.add('d-none');
+    // refresh the table to show formatted times
+    showMonthReview();
+}
+
+// Update existing slot entry or create new one in parsed
+function updateOrCreateSlot(id, date, slotKey, time24, type) {
+    // find existing entry
+    for (let p of parsed) {
+        // handle entries where p may be object with raw or full
+        let pid = p.id || null;
+        let pdate = p.date || null;
+        let ptime = p.time || null;
+        let ptype = (typeof p.type !== 'undefined') ? p.type : null;
+        if (!pid && p.raw) {
+            const parts = p.raw.trim().split(/\s+/);
+            pid = parseInt(parts[0]);
+            pdate = parts[1];
+            ptime = parts[2];
+            ptype = parseInt(parts[3]);
+        }
+        if (pid === id && pdate === date && ptype === type && isWithin(ptime, TIME_RULES[slotKey].start, TIME_RULES[slotKey].end)) {
+            // update this entry
+            const newRaw = makeLog('      '+id, date, time24, type);
+            p.raw = newRaw;
+            p.id = id; p.date = date; p.time = time24; p.type = type;
+            return;
+        }
+    }
+    // not found -> create (store full fields so output/normalization reflect edits)
+    const newRaw = makeLog('      '+id, date, time24, type);
+    parsed.push({ id: id, date: date, time: time24, type: type, raw: newRaw });
+}
+
+// Normalize parsed entries (handle generated rows that only have raw)
+function normalizeParsed() {
+    const out = [];
+    for (let p of parsed) {
+        if (p && p.id && p.date && p.time) {
+            out.push(p);
+            continue;
+        }
+        if (p && p.raw) {
+            const parts = p.raw.trim().split(/\s+/);
+            if (parts.length >= 3) {
+                // determine type: many formats have a constant token at parts[3] and the real type at parts[4]
+                // prefer parts[4] when present; otherwise search for the first '0' or '1' token after index 2
+                let type = null;
+                if (parts.length > 4 && (parts[4] === '0' || parts[4] === '1')) {
+                    type = parseInt(parts[4], 10);
+                } else {
+                    for (let i = 3; i < Math.min(parts.length, 7); i++) {
+                        if (parts[i] === '0' || parts[i] === '1') { type = parseInt(parts[i], 10); break; }
+                    }
+                }
+                if (type === null) type = 0;
+                out.push({ id: parseInt(parts[0]), date: parts[1], time: parts[2], type: type, raw: p.raw });
+            }
+        }
+    }
+    // Also include entries from storedOutput (if any) to ensure month view reflects downloadable data
+    if (storedOutput && storedOutput.trim().length > 0) {
+        const lines = storedOutput.trim().split(/\r?\n/);
+        for (let line of lines) {
+            const parts = line.trim().split(/\s+/);
+            if (parts.length >= 3) {
+                let type = null;
+                if (parts.length > 4 && (parts[4] === '0' || parts[4] === '1')) {
+                    type = parseInt(parts[4], 10);
+                } else {
+                    for (let i = 3; i < Math.min(parts.length, 7); i++) {
+                        if (parts[i] === '0' || parts[i] === '1') { type = parseInt(parts[i], 10); break; }
+                    }
+                }
+                if (type === null) type = 0;
+                const entry = { id: parseInt(parts[0]), date: parts[1], time: parts[2], type: type, raw: line };
+                const exists = out.some(o => o.id === entry.id && o.date === entry.date && o.time === entry.time && o.type === entry.type);
+                if (!exists) out.push(entry);
+            }
+        }
+    }
+    return out;
+}
+
+// Show per-day timelog for selected ID and date
+// Day review removed - replaced by month review
+
+// initialize
+populateIdOptions();
+renderIdManager();
+</script>
+
+</body>
+</html>

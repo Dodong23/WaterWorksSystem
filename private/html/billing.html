@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billing Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/clients.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+   <style>
+/* =========================
+   PRINT – ENVELOPE SETTINGS
+   ========================= */
+
+/* Default envelope size (DL – 110mm x 220mm)
+   You can change to:
+   - #10 envelope: 4.125in 9.5in
+*/
+@page {
+    size: 110mm 220mm;
+    margin: 0;
+}
+
+@media print {
+
+    html, body {
+        width: 110mm;
+        height: 220mm;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden;
+        background: #fff;
+    }
+
+    /* Hide EVERYTHING by default */
+    body * {
+        visibility: hidden;
+    }
+
+    /* Show ONLY printable bill */
+    .print-area,
+    .print-area * {
+        visibility: visible;
+    }
+
+    /* Position print content */
+    .print-area {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 110mm;
+        height: 220mm;
+        padding: 8mm; /* inner spacing – adjust if needed */
+        box-sizing: border-box;
+        font-size: 11px;
+    }
+
+    /* Remove Bootstrap layout effects */
+    .container,
+    .container-fluid {
+        max-width: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* No shadows, colors simplified */
+    * {
+        box-shadow: none !important;
+        text-shadow: none !important;
+        color: #000 !important;
+    }
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/billing-section/utils.js"></script>
+</head>
+<body>
+    <div id="navbar-container"></div>
+    <main id="main-content" class="container py-4"></main>
+
+    <div class="modal fade" id="editBillingModal" tabindex="-1" aria-labelledby="editBillingModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editBillingModalLabel">Edit Billing Record</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editBillingId">
+
+                    <div class="mb-3">
+                        <label for="editClientName" class="form-label">Client Name</label>
+                        <input type="text" class="form-control" id="editClientName" disabled>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="editClientId" class="form-label">Client ID</label>
+                            <input type="text" class="form-control" id="editClientId" disabled>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="editMeterNum" class="form-label">Meter Number</label>
+                            <input type="text" class="form-control" id="editMeterNum" disabled>
+                        </div>
+                    </div>
+                    <hr>
+
+                    <div class="mb-3">
+                        <label for="editCurrent" class="form-label">Current Reading</label>
+                        <input type="number" class="form-control" id="editCurrent">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editPrevious" class="form-label">Previous Reading</label>
+                        <input type="number" class="form-control" id="editPrevious">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editLessAmount" class="form-label">Less Amount</label>
+                        <input type="number" class="form-control" id="editLessAmount">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editLessAmount" class="form-label">Discount</label>
+                        <input type="number" class="form-control" id="editDiscount">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editFreeCubic" class="form-label">Free Cubic</label>
+                        <input type="number" class="form-control" id="editFreeCubic">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-info" id="printSingleBillBtn"><i class="bi bi-printer"></i> Print Bill</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="saveBillingChanges">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="billingManagementModal" tabindex="-1" aria-labelledby="billingManagementModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="billingManagementModalLabel">Billing Management</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <section class="form-section">
+                        <h2>Billing Configuration</h2>
+                        <form id="billing-config-form">
+                            <div class="rate-grid">
+                                <fieldset>
+                                    <legend>Residential</legend>
+                                    <div class="form-group">
+                                        <label for="res-min">Minimum Rate</label>
+                                        <input type="number" id="res-min" step="0.01" class="form-control" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="res-cubic">Rate per Cubic Meter</label>
+                                        <input type="number" id="res-cubic" step="0.01" class="form-control" required>
+                                    </div>
+                                </fieldset>
+
+                                <fieldset>
+                                    <legend>Commercial</legend>
+                                    <div class="form-group">
+                                        <label for="com-min">Minimum Rate</label>
+                                        <input type="number" id="com-min" step="0.01" class="form-control" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="com-cubic">Rate per Cubic Meter</label>
+                                        <input type="number" id="com-cubic" step="0.01" class="form-control" required>
+                                    </div>
+                                </fieldset>
+
+                                <fieldset>
+                                    <legend>Institutional</legend>
+                                    <div class="form-group">
+                                        <label for="inst-min">Minimum Rate</label>
+                                        <input type="number" id="inst-min" step="0.01" class="form-control" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="inst-cubic">Rate per Cubic Meter</label>
+                                        <input type="number" id="inst-cubic" step="0.01" class="form-control" required>
+                                    </div>
+                                </fieldset>
+
+                                <fieldset>
+                                    <legend>Industrial</legend>
+                                    <div class="form-group">
+                                        <label for="ind-min">Minimum Rate</label>
+                                        <input type="number" id="ind-min" step="0.01" class="form-control" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ind-cubic">Rate per Cubic Meter</label>
+                                        <input type="number" id="ind-cubic" step="0.01" class="form-control" required>
+                                    </div>
+                                </fieldset>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Save Configuration</button>
+                        </form>
+                    </section>
+
+                                    <section class="form-section">
+                                        <h2>Generate Monthly Billing</h2>
+                                        <form id="generate-billing-form">
+                                            <div class="form-group">
+                                                <label for="billing-month">Select Month</label>
+                                                <input type="month" id="billing-month" class="form-control" required>
+                                            </div>
+                                            <button type="submit" class="btn btn-primary">Generate Billing</button>
+                                        </form>
+                                    </section>
+                    
+                                    <section class="form-section">
+                                        <h2>Download Data for Reading</h2>
+                                        <p>Download the latest generated billing month's data for offline reading.</p>
+                                        <button type="button" class="btn btn-success" id="downloadForReadingBtn"><i class="bi bi-download"></i> Download for Reading</button>
+                                    </section>
+                    
+                                    <div id="message-area"></div>                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script> -->
+    
+    <script type="module">
+        import { renderNavbar } from '/js/billing-section/render-navbar.js';
+        import { renderBillingRecords } from '/js/billing-section/billing-records.js';
+        import { renderAccountsSection } from '/js/billing-section/accounts-section.js';
+        import { renderStatementOfAccount } from '/js/billing-section/statement-of-account.js';
+
+        async function fetchAndRenderUserData() {
+          try {
+            const response = await fetch('/api/users/me');
+            if (!response.ok) {
+              throw new Error('Could not fetch user data');
+            }
+            const user = await response.json();
+
+            const userFullnamePlaceholder = document.getElementById('user-fullname-placeholder');
+            const userDropdownMenu = document.getElementById('user-dropdown-menu');
+
+            if (userFullnamePlaceholder) {
+              userFullnamePlaceholder.textContent = user.fullName;
+            }
+
+            if (userDropdownMenu) {
+              userDropdownMenu.innerHTML = `
+                <li><h6 class="dropdown-header">${user.fullName}</h6></li>
+                <li><p class="dropdown-item-text"><small>${user.position}</small></p></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="/profile">Profile</a></li>
+                <li><a class="dropdown-item" href="#" id="logout-btn">Logout</a></li>
+              `;
+            }
+             // Re-add event listener for the new logout button
+             const logoutBtn = document.getElementById('logout-btn');
+             if (logoutBtn) {
+                 logoutBtn.addEventListener('click', async (e) => {
+                     e.preventDefault();
+                     try {
+                         const response = await fetch('/api/auth/logout', {
+                             method: 'POST',
+                         });
+                         if (response.ok) {
+                             window.location.href = '/mws-login';
+                         } else {
+                             alert('Logout failed. Please try again.');
+                         }
+                     } catch (error) {
+                         console.error('Error during logout:', error);
+                         alert('An error occurred during logout.');
+                     }
+                 });
+             }
+
+          } catch (error) {
+            console.error('Error fetching user data:', error);
+            // Redirect to login if not authenticated
+            if (error.message.includes('Could not fetch user data')) {
+                window.location.href = '/mws-login';
+            }
+          }
+        }
+
+        function handleRouteChange() {
+            const hash = window.location.hash || '#billing';
+            const mainContent = document.getElementById('main-content');
+
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+
+            const activeLink = document.querySelector(`.nav-link[href="${hash}"]`);
+            if (activeLink) {
+                activeLink.classList.add('active');
+            }
+
+            switch (hash) {
+                case '#dashboard':
+                    mainContent.innerHTML = '<h1>Dashboard</h1>'; // Placeholder
+                    break;
+                case '#billing':
+                    renderBillingRecords(mainContent);
+                    break;
+                case '#accounts':
+                    renderAccountsSection(mainContent, null, renderStatementOfAccount);
+                    break;
+                default:
+                    mainContent.innerHTML = '<h1>Page Not Found</h1>';
+            }
+        }
+
+        function init() {
+            const navbarContainer = document.getElementById('navbar-container');
+            renderNavbar(navbarContainer);
+            fetchAndRenderUserData();
+            
+            window.addEventListener('hashchange', handleRouteChange);
+            handleRouteChange(); // Initial route
+        }
+
+        init();
+    </script>
+</body>
+</html>

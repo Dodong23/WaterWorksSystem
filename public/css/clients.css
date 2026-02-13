@@ -1,0 +1,166 @@
+:root {
+            --primary: #4361ee;
+            --secondary: #3f37c9;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --gray: #6c757d;
+          }
+          
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          
+          body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f5f7fa;
+            color: var(--dark);
+            line-height: 1.6;
+            padding: 2rem;
+            text-size-adjust: 100%;
+          }
+          
+          .container {
+            max-width: 1200px;
+            margin: 0 auto;
+          }
+          
+          header {
+            text-align: center;
+            margin-bottom: 2rem;
+          }
+          
+          h1 {
+            color: var(--primary);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+          }
+          
+          .client-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+          }
+          
+          .client-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+          }
+          
+          .client-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+          }
+          
+          .client-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 1rem;
+          }
+          
+          .client-name {
+            font-weight: 500;
+            color: var(--primary);
+            font-size: 1.1rem;
+          }
+          
+          .client-field {
+            margin-bottom: 0.5rem;
+            display: flex;
+          }
+          
+          .field-label {
+            font-weight: 500;
+            min-width: 100px;
+            color: var(--gray);
+          }
+          
+          .field-value {
+            flex: 1;
+          }
+          
+          .btn {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            font-size: 0.9rem;
+          }
+          
+          .btn-view {
+            background-color: var(--primary);
+            color: white;
+          }
+          
+          .btn-view:hover {
+            background-color: var(--secondary);
+          }
+          .avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin-right: 10px;
+            object-fit: cover;
+        }
+        .message-avatar {
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            margin-right: 10px;
+            object-fit: cover;
+        }
+        .user-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            cursor: pointer;
+        }
+        .user-item:hover {
+            background-color: #f8f9fa;
+        }
+        .message-bubble {
+            padding: 8px 12px;
+            border-radius: 15px;
+            margin-bottom: 5px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+        .message-bubble.sent {
+            background-color: #007bff;
+            color: white;
+            align-self: flex-end;
+        }
+        .message-bubble.received {
+            background-color: #e2e6ea;
+            color: black;
+            align-self: flex-start;
+        }
+        .message-container {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        .message-container.sent {
+            justify-content: flex-end;
+        }
+        .message-container.received {
+            justify-content: flex-start;
+        }
+        .message-content {
+            display: flex;
+            flex-direction: column;
+        }
+        .message-timestamp {
+            font-size: 0.75em;
+            color: #888;
+            margin-top: 2px;
+        }

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="/path/to/favicon.ico" />
+  <title>Water Reading – Upload & Download JSON</title>
+  <style>
+    :root {
+      --primary: #0d6efd;
+      --secondary: #198754;
+      --bg: #f4f6f9;
+      --card: #ffffff;
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+    }
+    header {
+      background: var(--primary);
+      color: #fff;
+      padding: 1rem;
+      text-align: center;
+    }
+    .container {
+      max-width: 960px;
+      margin: auto;
+      padding: 1rem;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    }
+    h2 { margin-top: 0; }
+    label {
+      font-weight: 600;
+      display: block;
+      margin-top: 0.75rem;
+    }
+    input, button {
+      width: 100%;
+      padding: 0.65rem;
+      margin-top: 0.25rem;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      font-size: 1rem;
+    }
+    button {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      margin-top: 1rem;
+    }
+    button.secondary {
+      background: var(--secondary);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.75rem;
+    }
+    th, td {
+      padding: 0.6rem;
+      border-bottom: 1px solid #e0e0e0;
+      font-size: 0.9rem;
+    }
+    @media (min-width: 640px) {
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Water Reading System</h1>
+  <small>JSON upload & download via API</small>
+</header>
+
+<div class="container">
+  <div class="grid">
+    <!-- JSON UPLOAD -->
+    <div class="card">
+      <h2>Upload Reading JSON</h2>
+      <label>Select JSON File</label>
+      <input type="file" id="jsonFile" accept="application/json" />
+      <button onclick="uploadJsonFile()">Upload to Server</button>
+      <div id="uploadStatus"></div>
+    </div>
+
+    <!-- JSON DOWNLOAD -->
+    <div class="card">
+      <h2>Download Reading Data</h2>
+      <button class="secondary" onclick="downloadReadings()">Download JSON</button>
+      <table id="readingTable">
+        <thead>
+          <tr>
+            <th>Account</th>
+            <th>Name</th>
+            <th>Usage</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API_BASE = '';
+  const UPLOAD_ENDPOINT = `/api/billings/update-via-api`;
+
+  const CHUNK_SIZE = 50;
+
+  async function uploadJsonFile() {
+    const fileInput = document.getElementById('jsonFile');
+    const uploadStatus = document.getElementById('uploadStatus');
+
+    if (!fileInput.files.length) {
+      uploadStatus.innerHTML = '<span style="color:red">Please select a JSON file</span>';
+      return;
+    }
+
+    try {
+      // ✅ Read file
+      const file = fileInput.files[0];
+      let text = await file.text();
+
+      // ✅ Remove BOM if present
+      text = text.replace(/^\uFEFF/, '');
+
+      // ✅ Parse JSON safely
+      let payload;
+      try {
+        payload = JSON.parse(text);
+      } catch (err) {
+        uploadStatus.innerHTML = `<span style="color:red">Invalid JSON file: ${err.message}</span>`;
+        return;
+      }
+
+      // Convert object → entries
+      const entries = Object.entries(payload);
+      const total = entries.length;
+
+      let sent = 0;
+
+      // ✅ Chunked upload
+      for (let i = 0; i < total; i += CHUNK_SIZE) {
+        const chunk = Object.fromEntries(
+          entries.slice(i, i + CHUNK_SIZE)
+        );
+
+        uploadStatus.innerHTML =
+          `Uploading ${Math.min(sent + CHUNK_SIZE, total)} / ${total}...`;
+
+        const res = await fetch(UPLOAD_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(chunk)
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.message || 'Upload failed');
+        }
+
+        sent += Object.keys(chunk).length;
+      }
+
+      uploadStatus.innerHTML =
+        `<span style="color:green">✔ Upload complete (${sent} records)</span>`;
+
+    } catch (err) {
+      console.error(err);
+      uploadStatus.innerHTML =
+        `<span style="color:red">❌ ${err.message || 'Network or JSON error'}</span>`;
+    }
+  }
+</script>
+
+
+</body>
+</html>

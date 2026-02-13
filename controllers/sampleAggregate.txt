@@ -1,0 +1,26 @@
+const serviceRequestMatch = [
+  {
+    $match: {
+      $expr: { $eq: ["$clientId", "$$clientId"] }
+    }
+  }
+];
+
+// If there's a filter in query (e.g., status)
+if (req.query.status) {
+  serviceRequestMatch.push({
+    $match: { status: req.query.status }
+  });
+}
+
+const result = await Client.aggregate([
+  { $match: matchQuery },
+  {
+    $lookup: {
+      from: "servicerequests",
+      let: { clientId: "$clientId" },
+      pipeline: serviceRequestMatch,
+      as: "joinedDocuments"
+    }
+  }
+]);

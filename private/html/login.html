@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MWS Information System - Login</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <style>
+    body {
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      overflow-x: hidden;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 1rem;
+    }
+    
+    /* Animated water background */
+    .water-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+      background: linear-gradient(to bottom, #0c4a8f, #1e88e5, #4fc3f7);
+      overflow: hidden;
+    }
+    
+    /* Water surface animation */
+    .water-surface {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 30%;
+      background: linear-gradient(to top, rgba(12, 74, 143, 0.8), rgba(30, 136, 229, 0.5));
+      border-radius: 100% 100% 0 0;
+      animation: wave 10s ease-in-out infinite alternate;
+    }
+    
+    .water-surface:nth-child(2) {
+      height: 25%;
+      opacity: 0.7;
+      animation: wave 8s ease-in-out infinite alternate-reverse;
+      bottom: -5%;
+    }
+    
+    .water-surface:nth-child(3) {
+      height: 20%;
+      opacity: 0.5;
+      animation: wave 12s ease-in-out infinite alternate;
+      bottom: -8%;
+    }
+    
+    /* Bubbles animation */
+    .bubble {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      bottom: -20px;
+      animation: bubble-rise 15s infinite ease-in;
+    }
+    
+    .bubble:nth-child(1) {
+      width: 30px;
+      height: 30px;
+      left: 10%;
+      animation-delay: 0s;
+    }
+    
+    .bubble:nth-child(2) {
+      width: 15px;
+      height: 15px;
+      left: 30%;
+      animation-delay: 1s;
+      animation-duration: 12s;
+    }
+    
+    .bubble:nth-child(3) {
+      width: 25px;
+      height: 25px;
+      left: 50%;
+      animation-delay: 3s;
+      animation-duration: 18s;
+    }
+    
+    .bubble:nth-child(4) {
+      width: 20px;
+      height: 20px;
+      left: 70%;
+      animation-delay: 2s;
+      animation-duration: 14s;
+    }
+    
+    .bubble:nth-child(5) {
+      width: 10px;
+      height: 10px;
+      left: 90%;
+      animation-delay: 4s;
+      animation-duration: 10s;
+    }
+    
+    /* Keyframe animations */
+    @keyframes wave {
+      0% {
+        transform: translateX(0) scaleY(1);
+        border-radius: 100% 100% 0 0;
+      }
+      50% {
+        transform: translateX(-5%) scaleY(1.05);
+        border-radius: 90% 110% 0 0;
+      }
+      100% {
+        transform: translateX(5%) scaleY(0.95);
+        border-radius: 110% 90% 0 0;
+      }
+    }
+    
+    @keyframes bubble-rise {
+      0% {
+        transform: translateY(0) scale(1);
+        opacity: 0;
+      }
+      10% {
+        opacity: 0.3;
+      }
+      90% {
+        opacity: 0.1;
+      }
+      100% {
+        transform: translateY(-100vh) scale(1.5);
+        opacity: 0;
+      }
+    }
+    
+    /* Login container styling */
+    .login-container {
+      width: 100%;
+      max-width: 420px;
+      z-index: 10;
+      position: relative;
+    }
+    
+    .login-card {
+      border: none;
+      border-radius: 1rem;
+      box-shadow: 0 15px 35px rgba(0, 50, 120, 0.2), 
+                  0 5px 15px rgba(0, 0, 0, 0.1),
+                  inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+      padding: 2.5rem;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      position: relative;
+      overflow: hidden;
+      animation: container-float 6s ease-in-out infinite;
+    }
+    
+    @keyframes container-float {
+      0% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-5px);
+      }
+      100% {
+        transform: translateY(0);
+      }
+    }
+    
+    .login-card-header {
+      text-align: center;
+      margin-bottom: 2rem;
+      position: relative;
+      z-index: 2;
+    }
+    
+    .login-card-header .logo {
+      font-size: 3rem;
+      color: #0d6efd;
+      margin-bottom: 0.5rem;
+      animation: droplet-pulse 3s infinite ease-in-out;
+    }
+    
+    @keyframes droplet-pulse {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.05);
+      }
+    }
+    
+    .login-card-header h3 {
+      font-weight: 700;
+      color: #0c4a8f;
+    }
+    
+    .login-card-header p {
+      color: #6c757d;
+    }
+    
+    .form-control {
+      border-radius: 0.75rem;
+      padding: 1rem;
+      border: 1px solid #e9ecef;
+    }
+    
+    .form-control:focus {
+      box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+      border-color: #86b7fe;
+    }
+    
+    .btn-login {
+      border-radius: 0.75rem;
+      padding: 1rem;
+      font-weight: 600;
+      font-size: 1.1rem;
+      margin-top: 1rem;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-login:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(13, 110, 253, 0.3);
+    }
+    
+    .footer-credits {
+      text-align: center;
+      margin-top: 2rem;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 0.85rem;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Welcome Notification Styles */
+    .welcome-notification {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.5);
+      background: linear-gradient(135deg, #0d6efd, #0a58ca);
+      color: white;
+      padding: 2rem 3rem;
+      border-radius: 1rem;
+      box-shadow: 0 20px 40px rgba(13, 110, 253, 0.4);
+      z-index: 1000;
+      text-align: center;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      max-width: 350px;
+      width: 90%;
+    }
+    
+    .welcome-notification.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    
+    .welcome-notification.hide {
+      opacity: 0;
+      visibility: hidden;
+      transform: translate(-50%, -50%) scale(1.2);
+    }
+    
+    .notification-icon {
+      width: 60px;
+      height: 60px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      margin-bottom: 1rem;
+      animation: iconPulse 2s infinite;
+    }
+    
+    @keyframes iconPulse {
+      0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4);
+      }
+      50% {
+        transform: scale(1.1);
+        box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+      }
+    }
+    
+    .welcome-notification h3 {
+      font-weight: 700;
+      margin: 0;
+      font-size: 1.5rem;
+    }
+    
+    .welcome-notification p {
+      font-size: 1.1rem;
+      margin: 0;
+      opacity: 0.9;
+    }
+    
+    .notification-progress {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 2px;
+      margin-top: 1rem;
+      overflow: hidden;
+    }
+    
+    .notification-progress-bar {
+      height: 100%;
+      background: white;
+      width: 0%;
+      border-radius: 2px;
+      transition: width 3s linear;
+    }
+    
+    /* Success ripple effect */
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(13, 110, 253, 0.1);
+      transform: scale(0);
+      animation: ripple 1s ease-out;
+    }
+    
+    @keyframes ripple {
+      to {
+        transform: scale(4);
+        opacity: 0;
+      }
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 576px) {
+      .login-card {
+        padding: 2rem 1.5rem;
+        margin: 0 1rem;
+      }
+      
+      .welcome-notification {
+        padding: 1.5rem 2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Animated water background -->
+  <div class="water-bg">
+    <div class="water-surface"></div>
+    <div class="water-surface"></div>
+    <div class="water-surface"></div>
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+  </div>
+  
+  <!-- Welcome Notification -->
+  <div class="welcome-notification" id="welcomeNotification">
+    <div class="notification-icon">
+      <i class="bi bi-check-circle"></i>
+    </div>
+    <h3>Welcome Back!</h3>
+    <p id="welcomeMessage">Welcome back, <span id="userName">User</span>!</p>
+    <div class="notification-progress">
+      <div class="notification-progress-bar" id="progressBar"></div>
+    </div>
+  </div>
+  
+  <!-- Login Container -->
+  <div class="login-container">
+    <div class="login-card">
+      <div id="alert-container"></div>
+      <div class="login-card-header">
+        <div class="logo"><i class="bi bi-droplet-half"></i></div>
+        <p>LGU Manukan</p>
+        <h3>MWS Information System</h3>
+      </div>
+      <form id="loginForm">
+        <div class="mb-3">
+          <label for="username" class="form-label visually-hidden">Username</label>
+          <input type="text" class="form-control" id="username" placeholder="Username" required>
+        </div>
+        <div class="mb-3">
+          <label for="password" class="form-label visually-hidden">Password</label>
+          <input type="password" class="form-control" id="password" placeholder="Password" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 btn-login">Login</button>
+      </form>
+    </div>
+    <div class="footer-credits">
+      <p>Developer: Sunny Aviso</p>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Your existing script with modifications for animations
+    document.addEventListener('DOMContentLoaded', () => {
+        const loginForm = document.querySelector('form');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const alertContainer = document.getElementById('alert-container');
+
+        // Store previous username in localStorage
+        const storedUsername = localStorage.getItem('mws_username') || '';
+        if (storedUsername) {
+            usernameInput.value = storedUsername;
+        }
+
+        const showAlert = (message, type = 'danger') => {
+            // Clear any existing alerts
+            alertContainer.innerHTML = '';
+            
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = [
+                `<div class="alert alert-${type} alert-dismissible fade show" role="alert">`,
+                `   <div>${message}</div>`,
+                '   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>',
+                '</div>'
+            ].join('');
+
+            alertContainer.append(wrapper);
+        };
+
+        // Function to show welcome notification
+        function showWelcomeNotification(username, fullName) {
+            const notification = document.getElementById('welcomeNotification');
+            const progressBar = document.getElementById('progressBar');
+            
+            // Update welcome message
+            document.getElementById('userName').textContent = username;
+            document.getElementById('welcomeMessage').innerHTML = `Welcome back, <strong>${fullName}</strong>!`;
+            
+            // Show ripple effects
+            createRippleEffects();
+            
+            // Show notification with smooth animation
+            notification.classList.remove('hide');
+            notification.classList.add('show');
+            
+            // Start progress bar animation
+            setTimeout(() => {
+                progressBar.style.width = '100%';
+            }, 50);
+            
+            // Hide notification after 3 seconds
+            setTimeout(() => {
+                notification.classList.remove('show');
+                notification.classList.add('hide');
+                
+                // Reset progress bar
+                setTimeout(() => {
+                    progressBar.style.width = '0%';
+                }, 500);
+                
+            }, 3000);
+        }
+
+        // Function to create ripple effects
+        function createRippleEffects() {
+            const loginCard = document.querySelector('.login-card');
+            const rect = loginCard.getBoundingClientRect();
+            
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    const ripple = document.createElement('div');
+                    ripple.classList.add('ripple');
+                    
+                    // Position ripple from center of login card
+                    ripple.style.left = (rect.left + rect.width / 2) + 'px';
+                    ripple.style.top = (rect.top + rect.height / 2) + 'px';
+                    ripple.style.width = ripple.style.height = '20px';
+                    
+                    document.body.appendChild(ripple);
+                    
+                    // Remove ripple after animation
+                    setTimeout(() => {
+                        ripple.remove();
+                    }, 1000);
+                }, i * 200);
+            }
+        }
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const username = usernameInput.value;
+            const password = passwordInput.value;
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+                console.log('Server response OK:', response.ok);
+                console.log('Server data:', data);
+
+                if (response.ok) {
+                    // Store username for future welcome messages
+                    localStorage.setItem('mws_username', username);
+                    
+                    const officeCode = data.user.officeCode;
+                    const fullName = data.user.fullName;
+                    localStorage.setItem('userId', data.user.id);
+                    localStorage.setItem('fullName', fullName);
+                    console.log('Login successful. Office Code for redirection:', officeCode);
+
+                    // Show welcome notification with user's full name
+                    showWelcomeNotification(username, fullName);
+                    
+                    // Wait for notification to finish before redirecting
+                    setTimeout(() => {
+                        // Redirect based on officeCode
+                        switch (officeCode) {
+                            case '0': // Master Admin
+                                window.location.href = '/admin/users';
+                                break;
+                            case '1': // Billing
+                                window.location.href = '/billings';
+                                break;
+                            case '2': // Treasury
+                                window.location.href = '/treasury';
+                                break;
+                            case '3': // Engineering
+                                window.location.href = '/engineering';
+                                break;
+                            default:
+                                // Fallback or error page if officeCode is unexpected
+                                showAlert('Unknown office code. Redirecting to a default page.', 'warning');
+                                setTimeout(() => {
+                                    window.location.href = '/'; 
+                                }, 2000);
+                                break;
+                        }
+                    }, 3500); // Wait slightly longer than the notification duration
+                    
+                } else {
+                    showAlert(data.message || 'Login failed. Please check your credentials or contact the system administrator.');
+                }
+            } catch (error) {
+                console.error('Error during login:', error);
+                showAlert('An error occurred during login. Please try again later.');
+            }
+        });
+        
+        // Add some random bubbles dynamically for more effect
+        const waterBg = document.querySelector('.water-bg');
+        
+        // Add more bubbles
+        for (let i = 0; i < 10; i++) {
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.style.left = Math.random() * 100 + '%';
+            bubble.style.width = Math.random() * 20 + 5 + 'px';
+            bubble.style.height = bubble.style.width;
+            bubble.style.animationDelay = Math.random() * 5 + 's';
+            bubble.style.animationDuration = Math.random() * 10 + 10 + 's';
+            waterBg.appendChild(bubble);
+        }
+    });
+  </script>
+</body>
+</html>
