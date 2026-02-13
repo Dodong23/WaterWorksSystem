@@ -5,6 +5,7 @@ const cors = require('cors');
 const { v2: cloudinary } = require('cloudinary');
 const cookieParser = require('cookie-parser');
 const app = express();
+app.set('trust proxy', 1);
 const path = require('path');
 const fs = require('fs');
 // // ================= Cloudinary Configuration =================
@@ -24,8 +25,6 @@ app.use(cookieParser());
 
  
 const userRoutes = require('./routes/users');
-const imageRoutes = require('./routes/images');
-const web = require('./routes/web');
 const clientsRoutes = require('./routes/clients');
 const serviceRequestRoutes = require('./routes/serviceRequests');
 const servicesRoutes = require('./routes/services');
